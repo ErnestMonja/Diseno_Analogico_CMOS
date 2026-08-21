@@ -1,0 +1,25 @@
+* Prof. Michel Saenz
+* CMOS Models for L=0.18um - version 3.0
+* 
+* Description:
+* A simple Spice model for a CMOS 0.18um techn.
+* Parameters are a mix from the following references,
+* Ref: Fundamentals of Microelectronics 2nd Edition. Behzad Razavi, page 887.
+*      Design of Analog CMOS Integrated Circuits 2nd Edition. Behzad Razavi, page 35.
+* Parasitic caps included, then suitable for frequency analysis and transient simulations.
+* Body cap not included
+* LD difussion penetration not included
+* tox parameter is updated from 0.4n to 4n for more realistic values
+* lambda parameter is valid for L=0.18um in this model, you need to update the model for differents lambda values properly.
+* lambda = "Constant"/L in this model (in this model the "Constant"=0.4*0.18 = 0.072)
+*
+***
+ 
+.model nmosFAC nmos (level=1, uo=360, tox=4n, vt0=0.5, gamma=0.45, phi=0.9, lambda=0.4
++ cj=3e-4, mj=0.35, cjsw=40e-9, mjsw=0.3
++ cgdo=0.4e-9, cgso=0.4e-9)
+
+.model pmosFAC pmos (level=1, uo=150, tox=4n, vt0=-0.55, gamma=0.4, phi=0.8, lambda=0.5
++ cj=3.5e-4, mj=0.35, cjsw=35e-9, mjsw=0.3
++ cgdo=0.3e-9, cgso=0.3e-9)
+
