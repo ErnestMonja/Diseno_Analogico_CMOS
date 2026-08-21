@@ -1,0 +1,23 @@
+\begin{tikzpicture}[transform shape]
+	% Paths, nodes and wires:
+	\node[nmos](N1) at (0, 1.48){} node[anchor=west] at (N1.text){$M_{1}$};
+	\node[nmos](N2) at (0, -1.5){} node[anchor=west] at (N2.text){$M_{2}$};
+	\draw (-1.5, 1.48) -- (-0.98, 1.48);
+	\draw (0, 0.71) -- (0, -0.75);
+	\draw (-2.48, -3.5) to[american resistor, l={$R_{2} = 5 \ [k\Omega]$}] (-2.48, -1.5);
+	\draw (-0, -2.27) -| (0, -2.29) -- (-0, -3.52);
+	\draw (-2.48, -0.5) to[american resistor, l={$R_{1} = 10 \ [k\Omega]$}] (-0.25, -0.5);
+	\draw (-2.48, -0.5) -| (-2.48, -1.5);
+	\node[tlground] at (-2.48, -3.5){};
+	\node[tlground] at (-0, -3.52){};
+	\node[shape=rectangle, minimum width=0.965cm, minimum height=0.465cm](N3) at (-2, 1.48){} node[anchor=center] at (N3.text){$V_{in}$};
+	\node[ocirc] at (-1.5, 1.48){};
+	\node[ocirc] at (-0, 2.73){};
+	\node[ocirc] at (0.75, -0.02){};
+	\draw (-0, 2.73) -| (0, 2.25);
+	\draw (0.75, -0.02) -- (-0, -0.02);
+	\node[shape=rectangle, minimum width=0.965cm, minimum height=0.465cm](N4) at (1.25, -0.02){} node[anchor=center] at (N4.text){$V_{out}$};
+	\node[shape=rectangle, minimum width=0.715cm, minimum height=0.715cm](N5) at (0, 3.125){} node[anchor=center] at (N5.text){$V_{DD}$};
+	\draw (-0.98, -1.5) -| (-2.48, -1.5);
+	\draw (-0.25, -0.5) -- (0, -0.5);
+\end{tikzpicture}
