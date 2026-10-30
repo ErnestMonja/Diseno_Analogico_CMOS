@@ -1,0 +1,35 @@
+\begin{thebibliography}{1}
+
+\bibitem{sky130_pdk}
+{SkyWater Technology Foundry and Google}, ``{SkyWater SKY130 PDK}
+  documentation.'' \url{https://skywater-pdk.readthedocs.io}.
+\newblock Accessed: Oct. 28, 2026.
+
+\bibitem{iic_osic_tools}
+{Institute for Integrated Circuits, Johannes Kepler University Linz},
+  ``{IIC-OSIC-TOOLS}: All-in-one docker image for open-source analog and
+  digital {IC} design.'' \url{https://github.com/iic-jku/IIC-OSIC-TOOLS}.
+\newblock Accessed: Oct. 28, 2026.
+
+\bibitem{jku_ihp_tutorial}
+{Institute for Integrated Circuits, Johannes Kepler University Linz}, ``A
+  tutorial on open-source analog-mixed signal chip design with the {IHP SG13G2}
+  {Open-PDK}.''
+  \url{https://iic-jku.github.io/ihp-sg13g2-ams-chip-template/index.html}.
+\newblock Accessed: Oct. 28, 2026.
+
+\bibitem{xschem_sky130}
+S.~Schippers, ``{Xschem}: Tutorial on {SKY130} integration.''
+  \url{https://xschem.sourceforge.io/stefan/xschem_man/tutorial_xschem_sky130.html}.
+\newblock Accessed: Oct. 28, 2026.
+
+\bibitem{ngspice}
+{The ngspice team}, ``Ngspice user's manual.''
+  \url{https://ngspice.sourceforge.io/docs.html}.
+\newblock Accessed: Oct. 28, 2026.
+
+\bibitem{b1}
+B.~Razavi, {\em Fundamentals of Microelectronics}.
+\newblock John Wiley \& Sons, 2nd edition~ed., 2013.
+
+\end{thebibliography}

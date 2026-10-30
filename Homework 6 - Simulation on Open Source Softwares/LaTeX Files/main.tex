@@ -1,0 +1,1381 @@
+\documentclass[12pt,a4paper]{article}
+
+% Paquetes básicos
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage{xcolor}
+\geometry{margin=2.5cm}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{setspace}
+\usepackage{multirow}
+\usepackage[american, straightvoltages]{circuitikz}
+\usepackage{csquotes}
+\usepackage{indentfirst}
+
+\graphicspath{{Figures/}}
+\setlength{\emergencystretch}{2em}   % avoids small overfull lines
+\onehalfspacing
+\hypersetup{
+    colorlinks  = true,
+    linkcolor   = blue,    
+    citecolor   = blue,
+    urlcolor    = blue,
+    filecolor   = blue
+}
+
+% Inserts the image if it exists; otherwise draws a framed placeholder
+% (keeps the document compiling while the screenshots are still missing).
+% Usage: \safeimage{<width>}{<path relative to main.tex>}
+\newcommand{\safeimage}[2]{%
+    \IfFileExists{#2}%
+        {\includegraphics[width=#1]{#2}}%
+        {\fbox{\parbox[c][4cm][c]{#1}{\centering Missing figure:\\ \texttt{\detokenize{#2}}}}}%
+}
+
+\begin{document}
+\renewcommand{\figureautorefname}{Fig.}
+\renewcommand{\tableautorefname}{Tab.}
+\renewcommand{\equationautorefname}{Eq.}
+
+
+% Carátula personalizada
+\pagenumbering{alph}   % avoids duplicated page.1 destination (hyperref)
+\begin{titlepage}
+    \centering
+    \includegraphics[width=0.7\textwidth]{Fulgor Logo.png}\\[1.5cm]
+
+    {\Large \textbf{FUNDACIÓN FULGOR} \\[0.5cm]}
+    {\Large Undergrad CMOS Course} \\[0.5cm]
+
+    \rule{\textwidth}{0.5pt} \\[0.5cm]
+    {\Large \textbf{Homework N°6} \\[0.3cm]}
+    \rule{\textwidth}{0.5pt} \\[1cm]
+    
+\begin{tabular}{l l}
+    \textbf{Professors:} & Camilo Estevez.\\
+                         & Ramón Sarmiento.\\
+    \\
+    \textbf{Student:}    & Monja, Ernesto Joaquín (43.873.728)\\
+\end{tabular} \\[5cm]
+
+{\centering Year 2026 \par}
+
+\end{titlepage}
+\pagenumbering{arabic}
+
+
+% Índice
+\tableofcontents
+\newpage
+
+
+\section{Introduction}                                              \label{sec_1}
+In this report, the analog \textit{CMOS} circuits designed analytically in \textit{Homework 5} are verified through simulation. The square-law parameters of the previous assignment no longer apply: every transistor is now described by the \textit{BSIM4} models of the open-source \textit{SkyWater} \textit{sky130A} process design kit (\textit{PDK}) \cite{sky130_pdk}. As required by the assignment, the devices \texttt{nfet\_01v8} and \texttt{pfet\_01v8} are used for all transistors.
+
+The simulation environment is the \textit{IIC-OSIC-TOOLS} Docker image \cite{iic_osic_tools}, which bundles the schematic editor \textit{Xschem} and the circuit simulator \textit{ngspice}. Since recent versions of the image load the \textit{IHP SG13G2} \textit{PDK} by default, the active \textit{PDK} must first be switched to \textit{sky130A} with the command \texttt{sak-pdk sky130A} \cite{jku_ihp_tutorial}, launching \textit{Xschem} afterwards from the same terminal. The device models are included in the netlist through the \texttt{corner.sym} symbol of the \texttt{sky130\_fd\_pr} library, which adds the corresponding \texttt{.lib} statement for the selected process corner \cite{xschem_sky130}. All simulations were carried out in the typical corner (\texttt{tt}) at $T = 27 \, [^{\circ}C]$, with the analyses described in the \textit{ngspice} manual \cite{ngspice}.
+
+\subsection{Transistor Sizing Constraints}                          \label{sec_1.1}
+The maximum allowed width per finger is $W = 10 \, [\mu m]$. Therefore, the widths specified in the exercises are interpreted as required equivalent widths $W_{eq}$, which are obtained by means of the number of fingers $n_{f}$ and/or the multiplier $m$:
+\begin{equation}
+    W_{eq} = W \cdot m \cdot n_{f}
+    \label{eq_1}
+\end{equation}
+
+It should be noted that, in the \textit{sky130 Xschem} symbols, the parameter \texttt{W} represents the total width of one device, so each finger has a width of $W/n_{f}$ (this can be seen in the expressions of the \texttt{ad}, \texttt{as}, \texttt{pd} and \texttt{ps} parameters of the symbol).
+
+Different combinations of $W$, $m$ and $n_{f}$ may produce different results even when they share the same $W_{eq}$. The main reasons are:
+\begin{itemize}
+    \item \textbf{\underline{Junction parasitics:}} Adjacent fingers share their drain and source diffusions, so the diffusion areas and perimeters (\texttt{ad}, \texttt{as}, \texttt{pd}, \texttt{ps}) and the associated junction capacitances depend on $n_{f}$. With multipliers $m$, each device is drawn separately and nothing is shared.
+    
+    \item \textbf{\underline{Width-dependent effects:}} The threshold voltage and the mobility change with the width of each individual finger (narrow-width effects), and the layout-dependent stress effects depend on the diffusion lengths around each gate (\texttt{sa}, \texttt{sb}, \texttt{sd}).
+    
+    \item \textbf{\underline{Binned models:}} The \textit{sky130} models are divided into bins of width and length, so different finger widths may be evaluated with different model parameter sets.
+    
+    \item \textbf{\underline{Gate resistance:}} The distributed gate resistance decreases when a wide device is split into several shorter fingers.
+\end{itemize}
+
+These differences are usually small in the \textit{DC} operating point, but they become more noticeable in the small-signal and high-frequency behavior.
+
+
+
+
+
+\newpage
+\section{Exercise 1: Common-Source Bias Design}                     \label{sec_2}
+\subsection{Problem Statement}                                      \label{sec_2.1}
+The objective of this exercise is to design the common-source circuit shown in \autoref{fig:fig_1} for a drain current of $I_{D} = 1 \, [mA]$. 
+\begin{figure}[H]
+    \centering
+    \safeimage{0.3\linewidth}{Figures/Figure 1.PNG}
+    \caption{Exercise 1 (Problem 7.2). \cite[p. 340]{b1}}
+    \label{fig:fig_1}
+\end{figure}
+
+Given the transistor aspect ratio $W/L = 20/0.18$, we must calculate the bias resistors $R_{1}$ and $R_{2}$ such that the input impedance is at least $20 \, [k\Omega]$, and measure this impedance using an \textit{AC} analysis at the gate of $M_{1}$ at low frequencies. The supply voltage is $V_{DD} = 1.8 \, [V]$ and the drain resistor is $R_{D} = 500 \, [\Omega]$.
+
+
+\subsection{Analysis and Resolution}                                \label{sec_2.2}
+The gate voltage for $I_{D} = 1 \, [mA]$ is first obtained through a \textit{DC} sweep, then the bias resistors are computed, and finally the complete circuit is verified.
+
+\subsubsection{Transistor Sizing}                                   \label{sec_2.2.1}
+The required equivalent width $W_{eq} = 20 \, [\mu m]$ exceeds the maximum width per finger, so according to \autoref{eq_1} the transistor is split into two fingers:
+\begin{equation}
+    \begin{cases}
+        W_{finger} = 10 \, [\mu m] \\
+        n_{f} = 2 \\
+        m = 1 \\
+        L = 0.18 \, [\mu m]
+    \end{cases}
+    \implies W_{eq} = 10 \cdot 1 \cdot 2 = 20 \, [\mu m]
+    \label{eq_2}
+\end{equation}
+
+In the \texttt{nfet\_01v8} symbol this corresponds to \texttt{W=20}, \texttt{L=0.18}, \texttt{nf=2} and \texttt{mult=1} (dimensions in $[\mu m]$).
+
+
+\subsubsection{Gate Voltage for \texorpdfstring{$I_{D} = 1 \, [mA]$}{ID = 1 mA}}                \label{sec_2.2.2}
+In the testbench of \autoref{fig:fig_ex1_tb_vgs}, the bias divider is replaced by an ideal source $V_{GS}$ swept from $0$ to $1.8 \, [V]$, while $R_{D}$ is kept so that $M_{1}$ sees the same $V_{DS}$ as in the final circuit. Since the gate current is zero, $I_{D} = -i(V_{DD})$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.35\linewidth}{Figures/ex1_tb_vgs.png}
+    \caption{Testbench used to obtain the gate voltage (\textit{DC} sweep of $V_{GS}$).}
+    \label{fig:fig_ex1_tb_vgs}
+\end{figure}
+
+In the control block of \autoref{fig:fig_ex1_code_vgs}, the \texttt{meas} statement returns the value of $V_{G}$ at which $I_{D} = 1 \, [mA]$.
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{\linewidth}
+    \footnotesize
+\begin{verbatim}
+.control
+save all
+dc Vgs 0 1.8 1m
+let id = -i(Vdd)
+plot id
+meas dc VG_1mA find v(g) when id=1m
+.endc
+\end{verbatim}
+    \end{minipage}
+    \caption{\textit{ngspice} control block of the \textit{DC} sweep.}
+    \label{fig:fig_ex1_code_vgs}
+\end{figure}
+
+The resulting characteristic is shown in \autoref{fig:fig_ex1_id_vgs}. For high gate voltages the current flattens out at about $3.2 \, [mA]$, since $M_{1}$ enters the triode region and the current becomes limited by $R_{D}$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.7\linewidth}{Figures/ex1_id_vgs.png}
+    \caption{Simulated drain current as a function of $V_{GS}$.}
+    \label{fig:fig_ex1_id_vgs}
+\end{figure}
+
+The measurement yields:
+\begin{equation}
+    V_{G} = V_{GS} \Big|_{I_{D} = 1 \, [mA]} = 0.9374 \, [V]
+    \label{eq_3}
+\end{equation}
+
+
+\subsubsection{Bias Resistors \texorpdfstring{$R_{1}$}{R1} and \texorpdfstring{$R_{2}$}{R2}}                  \label{sec_2.2.3}
+The gate voltage is set by the voltage divider formed by $R_{1}$ and $R_{2}$, and, at low frequencies, the input impedance is the parallel combination of both resistors (the gate draws no current):
+\begin{equation}
+    \begin{cases}
+        V_{G} = V_{DD} \dfrac{R_{2}}{R_{1} + R_{2}} \\[0.4cm]
+        R_{in} = R_{1}//R_{2} = \dfrac{R_{1} R_{2}}{R_{1} + R_{2}}
+    \end{cases}
+    \label{eq_4}
+\end{equation}
+
+Solving the system for each resistor:
+\begin{equation}
+    R_{1} = R_{in} \frac{V_{DD}}{V_{G}} \qquad , \qquad R_{2} = R_{in} \frac{V_{DD}}{V_{DD} - V_{G}}
+    \label{eq_5}
+\end{equation}
+
+Substituting $R_{in} = 20 \, [k\Omega]$ and the simulated gate voltage of \autoref{eq_3}:
+\begin{equation}
+    R_{1} = 20 \, [k\Omega] \cdot \frac{1.8 \, [V]}{0.9374 \, [V]} \approx 38.41 \, [k\Omega]
+    \label{eq_6}
+\end{equation}
+\begin{equation}
+    R_{2} = 20 \, [k\Omega] \cdot \frac{1.8 \, [V]}{0.8626 \, [V]} \approx 41.73 \, [k\Omega]
+    \label{eq_7}
+\end{equation}
+
+
+\subsubsection{Operating Point Verification}                        \label{sec_2.2.4}
+The complete circuit of \autoref{fig:fig_ex1_final} was then simulated. The current source $I_{0}$ is only used for the input impedance measurement and, since its \textit{DC} value is zero, it does not modify the bias point.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.45\linewidth}{Figures/ex1_final_sch.png}
+    \caption{Final circuit with the bias resistors and the \textit{AC} test current source.}
+    \label{fig:fig_ex1_final}
+\end{figure}
+
+The control block of \autoref{fig:fig_ex1_code_final} performs an operating point analysis (\texttt{op}) and prints the node voltages together with the internal parameters of $M_{1}$. Since the \textit{sky130} transistors are implemented as subcircuits, the instance \texttt{M1} of the schematic appears in \textit{ngspice} as \texttt{m.xm1.msky130\_fd\_pr\_\_nfet\_01v8}.
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{\linewidth}
+    \footnotesize
+\begin{verbatim}
+.control
+save all
+save @m.xm1.msky130_fd_pr__nfet_01v8[id] @m.xm1.msky130_fd_pr__nfet_01v8[gm]
+save @m.xm1.msky130_fd_pr__nfet_01v8[vth] @m.xm1.msky130_fd_pr__nfet_01v8[vdsat]
+op
+print v(g) v(d)
+print @m.xm1.msky130_fd_pr__nfet_01v8[id] @m.xm1.msky130_fd_pr__nfet_01v8[gm]
+print @m.xm1.msky130_fd_pr__nfet_01v8[vth] @m.xm1.msky130_fd_pr__nfet_01v8[vdsat]
+ac dec 20 1 10G
+let zin = mag(v(g))
+plot zin xlog ylog
+meas ac Zin_1k find zin at=1k
+.endc
+\end{verbatim}
+    \end{minipage}
+    \caption{\textit{ngspice} control block of the operating point and \textit{AC} analyses.}
+    \label{fig:fig_ex1_code_final}
+\end{figure}
+
+The simulated operating point is summarized in \autoref{tab:tab_ex1_op}.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c|c|} \hline
+        \textbf{Parameter} & \textbf{Simulated value} \\ \hline
+        $V_{G}$         & $0.9373 \, [V]$ \\
+        $V_{D}$         & $1.3003 \, [V]$ \\
+        $I_{D}$         & $0.9995 \, [mA]$ \\
+        $g_{m}$         & $6.794 \, [mA/V]$ \\
+        $V_{Th}$        & $0.6981 \, [V]$ \\
+        $V_{D,sat}$     & $0.1663 \, [V]$ \\ \hline
+    \end{tabular}
+    \caption{Simulated operating point of $M_{1}$.}
+    \label{tab:tab_ex1_op}
+\end{table}
+
+The drain current matches the target within $0.1 \, \%$. In short-channel devices, the saturation voltage $V_{D,sat}$ given by the model is smaller than $V_{OV} = V_{GS} - V_{Th} \approx 0.239 \, [V]$ due to velocity saturation, so saturation is verified against $V_{D,sat}$:
+\begin{equation}
+    V_{DS} = 1.3003 \, [V] > V_{D,sat} = 0.1663 \, [V]
+    \label{eq_8}
+\end{equation}
+
+Thus, $M_{1}$ operates in saturation.
+
+
+\subsubsection{Input Impedance Measurement}                         \label{sec_2.2.5}
+The current source $I_{0}$ (\texttt{dc 0 ac 1}) injects a unit \textit{AC} current into the gate, so the magnitude of the gate voltage equals the input impedance:
+\begin{equation}
+    |Z_{in}(f)| = \frac{|V_{g}(f)|}{|I_{0}|} = \frac{|V_{g}(f)|}{1 \, [A]}
+    \label{eq_9}
+\end{equation}
+
+The result of an \textit{AC} sweep from $1 \, [Hz]$ to $10 \, [GHz]$ is shown in \autoref{fig:fig_ex1_zin}.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.85\linewidth}{Figures/ex1_zin.png}
+    \caption{Simulated input impedance magnitude as a function of frequency.}
+    \label{fig:fig_ex1_zin}
+\end{figure}
+
+At low frequencies the input impedance is constant and equal to $R_{1}//R_{2}$. The measured value at $1 \, [kHz]$ is:
+\begin{equation}
+    |Z_{in}|_{f = 1 \, [kHz]} = 20.0006 \, [k\Omega] \ge 20 \, [k\Omega]
+    \label{eq_10}
+\end{equation}
+
+Thus, the requirement is fulfilled. Above tens of megahertz the impedance decreases, since the gate capacitances of $M_{1}$ become comparable to the bias resistors; this is why it must be measured at low frequencies.
+
+
+
+
+
+\newpage
+\section{Exercise 2: Common-Source with Source Degeneration}        \label{sec_3}
+\subsection{Problem Statement}                                      \label{sec_3.1}
+The circuit shown in \autoref{fig:fig_2} must be designed for a voltage drop of $V_{RS} = 200 \, [mV]$ across $R_{S}$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.25\linewidth}{Figures/Figure 2.PNG}
+    \caption{Exercise 2 (Problem 7.4). \cite[p. 341]{b1}}
+    \label{fig:fig_2}
+\end{figure}
+ 
+The specific requirements are:
+\begin{itemize}
+    \item[(a)] Calculate the minimum allowable value of $W/L$ if $M_{1}$ must remain in saturation.
+    \item[(b)] Calculate the required values of $R_{1}$ and $R_{2}$ if the input impedance must be at least $30 \, [k\Omega]$, measuring it with an \textit{AC} analysis at the gate of $M_{1}$ at low frequencies.
+\end{itemize}
+ 
+The circuit parameters are $V_{DD} = 1.8 \, [V]$, $R_{D} = 500 \, [\Omega]$ and $R_{S} = 100 \, [\Omega]$, as shown in \autoref{fig:fig_2}.
+ 
+ 
+\subsection{Analysis and Resolution}                                \label{sec_3.2}
+The bias point is partially fixed by the circuit, regardless of the transistor model:
+\begin{equation}
+    \begin{cases}
+        I_{D} = \dfrac{V_{RS}}{R_{S}} = \dfrac{0.2 \, [V]}{100 \, [\Omega]} = 2 \, [mA] \\[0.4cm]
+        V_{S} = V_{RS} = 0.2 \, [V] \\[0.1cm]
+        V_{D} = V_{DD} - I_{D} R_{D} = 1.8 - (2 \times 10^{-3})(500) = 0.8 \, [V] \\[0.1cm]
+        V_{DS} = V_{D} - V_{S} = 0.6 \, [V]
+    \end{cases}
+    \label{eq_11}
+\end{equation}
+ 
+It should be noted that the bulk of the \texttt{nfet\_01v8} device is the \textit{p}-type substrate, so it is connected to ground and $V_{SB} = 0.2 \, [V]$, which increases the threshold voltage due to the body effect.
+ 
+ 
+\subsubsection{Part (a): Minimum allowable value of \texorpdfstring{$W/L$}{W/L}}           \label{sec_3.2.1}
+Here the unknown is the transistor width. The testbench of \autoref{fig:fig_ex2_tb_wmin} forces $M_{1}$ into the required operating point with ideal sources ($V_{D} = 0.8 \, [V]$, $V_{S} = 0.2 \, [V]$) while the gate voltage is swept, using a reference width $W_{ref} = 20 \, [\mu m]$ ($n_{f} = 2$). Since, for the same terminal voltages, the drain current is approximately proportional to the width, the minimum width is obtained afterwards by scaling.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.35\linewidth}{Figures/ex2_tb_wmin.png}
+    \caption{Testbench used to determine the minimum width (terminals forced to the required operating point).}
+    \label{fig:fig_ex2_tb_wmin}
+\end{figure}
+ 
+Two saturation criteria were evaluated: the model condition $V_{DS} \ge V_{D,sat}$, and the classical condition $V_{DS} \ge V_{OV}$, with the overdrive voltage computed from the threshold voltage given by the model:
+\begin{equation}
+    V_{OV} = V_{GS} - V_{Th} = V_{G} - V_{S} - V_{Th}
+    \label{eq_12}
+\end{equation}
+ 
+The control block used for this simulation is shown in \autoref{fig:fig_ex2_code_wmin}.
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{\linewidth}
+    \footnotesize
+\begin{verbatim}
+.control
+save all
+save @m.xm1.msky130_fd_pr__nfet_01v8[vdsat] @m.xm1.msky130_fd_pr__nfet_01v8[vth]
+dc Vg 0 1.8 1m
+let id = -i(Vd)
+let vdsat = @m.xm1.msky130_fd_pr__nfet_01v8[vdsat]
+let vov = v(g) - v(s) - @m.xm1.msky130_fd_pr__nfet_01v8[vth]
+plot vdsat vov
+plot id
+meas dc VG_dsat find v(g) when vdsat=0.6
+meas dc ID_dsat find id when vdsat=0.6
+meas dc VG_ov find v(g) when vov=0.6
+meas dc ID_ov find id when vov=0.6
+.endc
+\end{verbatim}
+    \end{minipage}
+    \caption{\textit{ngspice} control block for the minimum width analysis.}
+    \label{fig:fig_ex2_code_wmin}
+\end{figure}
+ 
+The results for the reference width are shown in \autoref{fig:fig_ex2_wmin_curves}.
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.36\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex2_vdsat_vov.png}
+        \caption{$V_{D,sat}$ and $V_{OV}$ versus $V_{G}$.}
+        \label{fig:fig_ex2_vdsat_vov}
+    \end{subfigure}
+    \hspace{0.35cm}
+    \begin{subfigure}{0.59\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex2_id_ref.png}
+        \caption{$I_{D}$ versus $V_{G}$.}
+        \label{fig:fig_ex2_id_ref}
+    \end{subfigure}
+    \caption{Simulation results for the reference width $W_{ref} = 20 \, [\mu m]$, with $V_{S} = 0.2 \, [V]$ and $V_{D} = 0.8 \, [V]$.}
+    \label{fig:fig_ex2_wmin_curves}
+\end{figure}
+ 
+\autoref{fig:fig_ex2_vdsat_vov} shows that, due to velocity saturation, $V_{D,sat}$ levels off at about $0.32 \, [V]$ and never reaches $0.6 \, [V]$, so the model criterion imposes no restriction on the width. Therefore, the classical criterion $V_{DS} \ge V_{OV}$ was adopted, which is the condition stated by the problem and is conservative with respect to the actual $V_{D,sat}$.
+ 
+The overdrive voltage reaches $0.6 \, [V]$ at the following point:
+\begin{equation}
+    V_{G} = 1.5484 \, [V] \qquad , \qquad I_{D,ref} = 3.450 \, [mA]
+    \label{eq_13}
+\end{equation}
+ 
+Scaling the reference width to the required current:
+\begin{equation}
+    W_{min} \approx W_{ref} \frac{I_{D}}{I_{D,ref}} = 20 \, [\mu m] \cdot \frac{2 \, [mA]}{3.450 \, [mA]} \approx 11.59 \, [\mu m]
+    \label{eq_14}
+\end{equation}
+ 
+To validate the linear scaling, the simulation was repeated with $W = 11.6 \, [\mu m]$ ($n_{f} = 2$), obtaining $V_{G} = 1.5448 \, [V]$ and $I_{D} = 1.978 \, [mA]$ at the boundary $V_{OV} = 0.6 \, [V]$. The error of approximately $1.1 \, \%$ is caused by the reduction of the width per finger from $10$ to $5.8 \, [\mu m]$ (see \autoref{sec_1.1}). Correcting the width with this result:
+\begin{equation}
+    W_{min} = 11.6 \, [\mu m] \cdot \frac{2 \, [mA]}{1.978 \, [mA]} \approx 11.73 \, [\mu m] \implies \left(\frac{W}{L}\right)_{min} = \frac{11.73}{0.18} \approx 65.2
+    \label{eq_15}
+\end{equation}
+ 
+To avoid operating exactly at the edge of the saturation region, the width was rounded up to $W = 12 \, [\mu m]$, implemented with $n_{f} = 2$ fingers of $6 \, [\mu m]$:
+\begin{equation}
+    \left(\frac{W}{L}\right) = \frac{12}{0.18} \approx 66.7 \qquad (W = 12, \; n_{f} = 2, \; m = 1)
+    \label{eq_16}
+\end{equation}
+ 
+ 
+\subsubsection{Part (b): Required values of \texorpdfstring{$R_{1}$}{R1} and \texorpdfstring{$R_{2}$}{R2}}    \label{sec_3.2.2}
+With the selected width, the gate voltage for $I_{D} = 2 \, [mA]$ was obtained with the testbench of \autoref{fig:fig_ex2_tb_vgs}, using a control block analogous to the one of \autoref{fig:fig_ex1_code_vgs}.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.26\linewidth}{Figures/ex2_tb_vgs.png}
+    \caption{Testbench used to obtain the gate voltage for $I_{D} = 2 \, [mA]$.}
+    \label{fig:fig_ex2_tb_vgs}
+\end{figure}
+ 
+The measurements yield:
+\begin{equation}
+    V_{G} = 1.5343 \, [V] \qquad , \qquad V_{S} = 0.200 \, [V]
+    \label{eq_17}
+\end{equation}
+ 
+The source voltage confirms the required drop across $R_{S}$, and $V_{G}$ is slightly lower than in \autoref{eq_13} because $W > W_{min}$.
+ 
+Applying \autoref{eq_5} with $R_{in} = 30 \, [k\Omega]$:
+\begin{equation}
+    R_{1} = 30 \, [k\Omega] \cdot \frac{1.8 \, [V]}{1.5343 \, [V]} \approx 35.20 \, [k\Omega]
+    \label{eq_18}
+\end{equation}
+\begin{equation}
+    R_{2} = 30 \, [k\Omega] \cdot \frac{1.8 \, [V]}{0.2657 \, [V]} \approx 203.2 \, [k\Omega]
+    \label{eq_19}
+\end{equation}
+ 
+ 
+\subsubsection{Operating Point Verification}                        \label{sec_3.2.3}
+The complete circuit of \autoref{fig:fig_ex2_final} was simulated with the same control block of \autoref{fig:fig_ex1_code_final}, also printing $v(s)$ and $V_{OV}$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.32\linewidth}{Figures/ex2_final_sch.png}
+    \caption{Final circuit with the bias resistors and the \textit{AC} test current source.}
+    \label{fig:fig_ex2_final}
+\end{figure}
+ 
+The simulated operating point is summarized in \autoref{tab:tab_ex2_op}.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c|c|} \hline
+        \textbf{Parameter} & \textbf{Simulated value} \\ \hline
+        $V_{G}$         & $1.5342 \, [V]$ \\
+        $V_{S}$         & $0.2000 \, [V]$ \\
+        $V_{D}$         & $0.8000 \, [V]$ \\
+        $I_{D}$         & $1.9999 \, [mA]$ \\
+        $g_{m}$         & $4.782 \, [mA/V]$ \\
+        $V_{Th}$        & $0.7454 \, [V]$ \\
+        $V_{OV}$        & $0.5888 \, [V]$ \\
+        $V_{D,sat}$     & $0.2688 \, [V]$ \\ \hline
+    \end{tabular}
+    \caption{Simulated operating point of $M_{1}$.}
+    \label{tab:tab_ex2_op}
+\end{table}
+ 
+The drain current and the voltage drop across $R_{S}$ match the design targets. The saturation condition is satisfied with both criteria:
+\begin{equation}
+    V_{DS} = 0.6000 \, [V] > V_{OV} = 0.5888 \, [V] > V_{D,sat} = 0.2688 \, [V]
+    \label{eq_20}
+\end{equation}
+ 
+The margin with respect to the classical criterion is small, as expected, and the threshold voltage is $47 \, [mV]$ higher than in \autoref{sec_2} due to the body effect.
+ 
+ 
+\subsubsection{Input Impedance Measurement}                         \label{sec_3.2.4}
+Following \autoref{sec_2.2.5}, the input impedance shown in \autoref{fig:fig_ex2_zin} was obtained.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.7\linewidth}{Figures/ex2_zin.png}
+    \caption{Simulated input impedance magnitude as a function of frequency.}
+    \label{fig:fig_ex2_zin}
+\end{figure}
+ 
+The measured value at $1 \, [kHz]$ is:
+\begin{equation}
+    |Z_{in}|_{f = 1 \, [kHz]} = 30.003 \, [k\Omega] \ge 30 \, [k\Omega]
+    \label{eq_21}
+\end{equation}
+ 
+Thus, the input impedance requirement is fulfilled.
+
+
+
+
+
+\newpage
+\section{Exercise 3: Self-Biased Stage Design}                      \label{sec_4}
+\subsection{Problem Statement}                                      \label{sec_4.1}
+The self-biased stage shown in \autoref{fig:fig_3} must be designed for a drain current of $I_{D} = 1 \, [mA]$. 
+\begin{figure}[H]
+    \centering
+    \safeimage{0.25\linewidth}{Figures/Figure 3.PNG}
+    \caption{Exercise 3 (Problem 7.6). \cite[p. 341]{b1}}
+    \label{fig:fig_3}
+\end{figure}
+ 
+If transistor $M_{1}$ must provide a transconductance of $g_{m} = 1/(100 \, [\Omega])$, we need to calculate the required value of $R_{D}$, neglecting $R_{G}$. The supply voltage is $V_{DD} = 1.8 \, [V]$.
+ 
+ 
+\subsection{Analysis and Resolution}                                \label{sec_4.2}
+Since the \textit{DC} gate current is zero, there is no voltage drop across $R_{G}$, so $V_{G} = V_{D}$ and $M_{1}$ behaves as a diode-connected transistor. As $V_{DS} = V_{GS}$ and $V_{GS} > V_{GS} - V_{Th}$, the transistor always operates in saturation.
+ 
+The problem does not specify the aspect ratio of $M_{1}$, and with the \textit{PDK} models there is no closed-form expression, so its width must be designed. Keeping $L = 0.18 \, [\mu m]$, the specification can be expressed in terms of the transconductance efficiency:
+\begin{equation}
+    \frac{g_{m}}{I_{D}} = \frac{10 \, [mA/V]}{1 \, [mA]} = 10 \, [V^{-1}]
+    \label{eq_23}
+\end{equation}
+ 
+In the $g_{m}/I_{D}$ methodology, for a given length, $g_{m}/I_{D}$ depends only on the current density $I_{D}/W$, so once the density that yields $10 \, [V^{-1}]$ is known, the width follows from the required current.
+ 
+ 
+\subsubsection{Transconductance Efficiency Characterization}         \label{sec_4.2.1}
+The testbench of \autoref{fig:fig_ex3_tb_gmid} was used to characterize a diode-connected reference transistor with $W_{ref} = 100 \, [\mu m]$, implemented with $n_{f} = 10$ fingers of $10 \, [\mu m]$. As in the final circuit, gate and drain are tied together and driven by a source $V_{GS}$ swept from $0.3$ to $1.8 \, [V]$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.35\linewidth}{Figures/ex3_tb_gmid.png}
+    \caption{Testbench for the $g_{m}/I_{D}$ characterization of the diode-connected reference transistor.}
+    \label{fig:fig_ex3_tb_gmid}
+\end{figure}
+ 
+The control block of \autoref{fig:fig_ex3_code_gmid} computes the transconductance efficiency from the $g_{m}$ reported by the model and measures the operating point where it equals $10 \, [V^{-1}]$.
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.8\linewidth}
+    \footnotesize
+\begin{verbatim}
+.control
+save all
+save @m.xm1.msky130_fd_pr__nfet_01v8[gm]
+dc Vgs 0.3 1.8 1m
+let id = -i(Vgs)
+let gm = @m.xm1.msky130_fd_pr__nfet_01v8[gm]
+let gmid = gm/id
+plot gmid
+plot id
+meas dc VGS_10 find v(d) when gmid=10
+meas dc ID_10 find id when gmid=10
+meas dc GM_10 find gm when gmid=10
+.endc
+\end{verbatim}
+    \end{minipage}
+    \caption{\textit{ngspice} control block for the $g_{m}/I_{D}$ characterization.}
+    \label{fig:fig_ex3_code_gmid}
+\end{figure}
+ 
+The results are shown in \autoref{fig:fig_ex3_curves}.
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.35\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex3_gmid.png}
+        \caption{$g_{m}/I_{D}$ versus $V_{GS}$.}
+        \label{fig:fig_ex3_gmid}
+    \end{subfigure}
+    \hspace{0.35cm}
+    \begin{subfigure}{0.55\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex3_id_ref.png}
+        \caption{$I_{D}$ versus $V_{GS}$.}
+        \label{fig:fig_ex3_id_ref}
+    \end{subfigure}
+    \caption{Characterization of the diode-connected reference transistor ($W_{ref} = 100 \, [\mu m]$, $L = 0.18 \, [\mu m]$).}
+    \label{fig:fig_ex3_curves}
+\end{figure}
+ 
+\autoref{fig:fig_ex3_gmid} shows the typical behavior of the transconductance efficiency: in weak inversion it reaches about $25.5 \, [V^{-1}]$, close to the theoretical limit $1/(n U_{T}) \approx 26 \, [V^{-1}]$ (with $n \approx 1.5$ and $U_{T} \approx 25.9 \, [mV]$), and it decreases monotonically as the transistor moves into strong inversion. The required value of $10 \, [V^{-1}]$ lies in the moderate inversion region. The measurements at this point yield:
+\begin{equation}
+    V_{GS} = 0.8598 \, [V] \qquad , \qquad I_{D,ref} = 2.486 \, [mA] \qquad , \qquad g_{m,ref} = 24.86 \, [mA/V]
+    \label{eq_24}
+\end{equation}
+ 
+Scaling the reference width to the required current:
+\begin{equation}
+    W = W_{ref} \frac{I_{D}}{I_{D,ref}} = 100 \, [\mu m] \cdot \frac{1 \, [mA]}{2.486 \, [mA]} \approx 40.2 \, [\mu m] \implies \frac{W}{L} \approx 223
+    \label{eq_25}
+\end{equation}
+ 
+The width was set to $W = 40 \, [\mu m]$ ($n_{f} = 4$ fingers of $10 \, [\mu m]$), keeping the same width per finger as the reference transistor.
+ 
+ 
+\subsubsection{Width Verification and \texorpdfstring{$R_{D}$}{RD} Calculation}           \label{sec_4.2.2}
+To verify the selected width, the diode-connected transistor was biased with an ideal current source of exactly $1 \, [mA]$, as shown in \autoref{fig:fig_ex3_diode}. An operating point analysis was performed, printing the same device parameters as in \autoref{fig:fig_ex1_code_final}.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.3\linewidth}{Figures/ex3_diode_sch.png}
+    \caption{Diode-connected transistor ($W = 40 \, [\mu m]$, $n_{f} = 4$) biased with an ideal $1 \, [mA]$ current source.}
+    \label{fig:fig_ex3_diode}
+\end{figure}
+ 
+The simulation yields $V_{GS} = 0.8613 \, [V]$ and $g_{m} = 9.956 \, [mA/V]$, that is, an error of $0.44 \, \%$ with respect to the specification, caused by rounding the width down from $40.2$ to $40 \, [\mu m]$. Given this gate-to-source voltage, the drain resistor follows from \textit{Ohm's law}, since $V_{D} = V_{GS}$:
+\begin{equation}
+    R_{D} = \frac{V_{DD} - V_{GS}}{I_{D}} = \frac{1.8 \, [V] - 0.8613 \, [V]}{1 \times 10^{-3} \, [A]} \approx 938.7 \, [\Omega]
+    \label{eq_26}
+\end{equation}
+ 
+ 
+\subsubsection{Final Circuit Verification}                           \label{sec_4.2.3}
+The complete circuit of \autoref{fig:fig_ex3_final} was simulated with $R_{D} = 938.7 \, [\Omega]$ and $R_{G} = 100 \, [k\Omega]$. Since no \textit{DC} current flows through $R_{G}$, its value does not affect the bias point.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.35\linewidth}{Figures/ex3_final_sch.png}
+    \caption{Final self-biased circuit.}
+    \label{fig:fig_ex3_final}
+\end{figure}
+ 
+The simulated operating point is summarized in \autoref{tab:tab_ex3_op}.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c|c|} \hline
+        \textbf{Parameter} & \textbf{Simulated value} \\ \hline
+        $V_{D}$         & $0.8613 \, [V]$ \\
+        $V_{G}$         & $0.8613 \, [V]$ \\
+        $I_{D}$         & $1.0000 \, [mA]$ \\
+        $g_{m}$         & $9.956 \, [mA/V]$ \\
+        $g_{m}/I_{D}$   & $9.956 \, [V^{-1}]$ \\
+        $V_{Th}$        & $0.6999 \, [V]$ \\
+        $V_{D,sat}$     & $0.1322 \, [V]$ \\ \hline
+    \end{tabular}
+    \caption{Simulated operating point of $M_{1}$.}
+    \label{tab:tab_ex3_op}
+\end{table}
+ 
+The gate and drain voltages are identical, confirming that $R_{G}$ carries no \textit{DC} current, and the saturation condition is amply satisfied:
+\begin{equation}
+    V_{DS} = 0.8613 \, [V] > V_{D,sat} = 0.1322 \, [V]
+    \label{eq_27}
+\end{equation}
+
+
+
+
+
+\newpage
+\section{Exercise 4: Common-Source Stage Analysis}                  \label{sec_5}
+\subsection{Problem Statement}                                      \label{sec_5.1}
+In the common-source stage shown in \autoref{fig:fig_4}, the transistor has an aspect ratio of $W/L = 30/0.18$. 
+\begin{figure}[H]
+    \centering
+    \safeimage{0.25\linewidth}{Figures/Figure 4.PNG}
+    \caption{Exercise 4 (Problem 7.17). \cite[p. 342]{b1}}
+    \label{fig:fig_4}
+\end{figure}
+ 
+We are tasked with determining:
+\begin{itemize}
+    \item[(a)] The gate voltage $V_{G}$ that yields a drain current of $I_{D} = 0.5 \, [mA]$, and verifying that $M_{1}$ operates in saturation.
+    \item[(b)] The low-frequency voltage gain $A_{v}$ of the stage under this bias condition.
+\end{itemize}
+ 
+The parameters given are $V_{DD} = 1.8 \, [V]$ and $R_{D} = 2 \, [k\Omega]$.
+ 
+ 
+\subsection{Analysis and Resolution}                                \label{sec_5.2}
+The required equivalent width $W_{eq} = 30 \, [\mu m]$ was implemented with $n_{f} = 3$ fingers of $10 \, [\mu m]$ ($W = 30$, $L = 0.18$, $n_{f} = 3$). As in the previous exercises, the drain voltage is fixed by the circuit and does not depend on the transistor model:
+\begin{equation}
+    V_{D} = V_{DD} - I_{D} R_{D} = 1.8 - (0.5 \times 10^{-3})(2 \times 10^{3}) = 0.8 \, [V]
+    \label{eq_28}
+\end{equation}
+ 
+ 
+\subsubsection{Part (a): Gate Voltage and Saturation Verification}  \label{sec_5.2.1}
+The gate voltage was obtained with the testbench of \autoref{fig:fig_ex4_tb_vgs}, in which the input source $V_{in}$ is swept from $0$ to $1.8 \, [V]$ with $R_{D}$ connected. The control block is analogous to the one of \autoref{fig:fig_ex1_code_vgs}, measuring the input and output voltages at the point where $I_{D} = 0.5 \, [mA]$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.35\linewidth}{Figures/ex4_tb_vgs.png}
+    \caption{Testbench used to obtain the gate voltage for $I_{D} = 0.5 \, [mA]$.}
+    \label{fig:fig_ex4_tb_vgs}
+\end{figure}
+ 
+The resulting characteristic is shown in \autoref{fig:fig_ex4_id_vgs}; for high gate voltages the transistor enters the triode region and the current is limited to about $V_{DD}/R_{D} = 0.9 \, [mA]$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.9\linewidth}{Figures/ex4_id_vgs.png}
+    \caption{Simulated drain current as a function of $V_{in}$.}
+    \label{fig:fig_ex4_id_vgs}
+\end{figure}
+ 
+The measurements at $I_{D} = 0.5 \, [mA]$ yield:
+\begin{equation}
+    V_{G} = 0.8244 \, [V] \qquad , \qquad V_{D} = 0.800 \, [V]
+    \label{eq_29}
+\end{equation}
+ 
+Setting the input source to this value in the final testbench of \autoref{sec_5.2.2}, the operating point of \autoref{tab:tab_ex4_op} was obtained.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c|c|} \hline
+        \textbf{Parameter} & \textbf{Simulated value} \\ \hline
+        $V_{G}$         & $0.8244 \, [V]$ \\
+        $V_{D}$         & $0.8000 \, [V]$ \\
+        $I_{D}$         & $0.5000 \, [mA]$ \\
+        $g_{m}$         & $5.968 \, [mA/V]$ \\
+        $g_{ds}$        & $160.1 \, [\mu A/V]$ \\
+        $r_{o} = 1/g_{ds}$ & $6.244 \, [k\Omega]$ \\
+        $V_{Th}$        & $0.6999 \, [V]$ \\
+        $V_{OV}$        & $0.1245 \, [V]$ \\
+        $V_{D,sat}$     & $0.1143 \, [V]$ \\ \hline
+    \end{tabular}
+    \caption{Simulated operating point of $M_{1}$.}
+    \label{tab:tab_ex4_op}
+\end{table}
+ 
+The saturation condition is amply satisfied with both criteria:
+\begin{equation}
+    V_{DS} = 0.800 \, [V] > V_{OV} = 0.1245 \, [V] > V_{D,sat} = 0.1143 \, [V]
+    \label{eq_30}
+\end{equation}
+
+
+\subsubsection{Part (b): Voltage Gain}                              \label{sec_5.2.2}
+Since the \textit{PDK} models include channel-length modulation, the output resistance $r_{o} = 1/g_{ds}$ of $M_{1}$ appears in parallel with $R_{D}$. The small-signal voltage gain of the stage is then:
+\begin{equation}
+    A_{v} = -g_{m} \left(R_{D} // r_{o}\right) = -\frac{g_{m}}{g_{ds} + 1/R_{D}}
+    \label{eq_31}
+\end{equation}
+ 
+The gain was obtained both from an \textit{AC} analysis and from \autoref{eq_31} with the model parameters, using the testbench of \autoref{fig:fig_ex4_final}. Its input source (\texttt{dc 0.824428 ac 1}) sets the bias point and applies a unit \textit{AC} signal, so $|V_{out}| = |A_{v}|$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.35\linewidth}{Figures/ex4_final_sch.png}
+    \caption{Final common-source stage with the \textit{DC} + \textit{AC} input source.}
+    \label{fig:fig_ex4_final}
+\end{figure}
+ 
+The control block used is shown in \autoref{fig:fig_ex4_code_final}.
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{\linewidth}
+    \scriptsize
+\begin{verbatim}
+.control
+save all
+save @m.xm1.msky130_fd_pr__nfet_01v8[id] @m.xm1.msky130_fd_pr__nfet_01v8[gm]
+save @m.xm1.msky130_fd_pr__nfet_01v8[gds] @m.xm1.msky130_fd_pr__nfet_01v8[vth]
+save @m.xm1.msky130_fd_pr__nfet_01v8[vdsat]
+op
+print v(in) v(out)
+print @m.xm1.msky130_fd_pr__nfet_01v8[id] @m.xm1.msky130_fd_pr__nfet_01v8[gm]
+print @m.xm1.msky130_fd_pr__nfet_01v8[gds] @m.xm1.msky130_fd_pr__nfet_01v8[vth]
+print @m.xm1.msky130_fd_pr__nfet_01v8[vdsat]
+let av_calc = @m.xm1.msky130_fd_pr__nfet_01v8[gm]/(@m.xm1.msky130_fd_pr__nfet_01v8[gds] + 1/2000)
+print av_calc
+ac dec 20 1 10G
+let av = mag(v(out))
+set units=degrees
+plot vdb(out) xlog
+plot vp(out) xlog
+meas ac Av_1k find av at=1k
+.endc
+\end{verbatim}
+    \end{minipage}
+    \caption{\textit{ngspice} control block of the operating point and \textit{AC} analyses.}
+    \label{fig:fig_ex4_code_final}
+\end{figure}
+ 
+The frequency response of the stage is shown in \autoref{fig:fig_ex4_ac}.
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex4_gain_mag.png}
+        \caption{Magnitude $[dB]$.}
+        \label{fig:fig_ex4_gain_mag}
+    \end{subfigure}
+    \hspace{0.35cm}
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex4_gain_phase.png}
+        \caption{Phase $[^{\circ}]$.}
+        \label{fig:fig_ex4_gain_phase}
+    \end{subfigure}
+    \caption{Simulated frequency response $V_{out}/V_{in}$ of the common-source stage.}
+    \label{fig:fig_ex4_ac}
+\end{figure}
+ 
+At low frequencies the magnitude is constant and the phase is $180 \, [^{\circ}]$, as expected for an inverting stage. The gain measured at $1 \, [kHz]$ is:
+\begin{equation}
+    A_{v,AC} = -8.821 \, \left[\frac{V}{V}\right] \qquad (18.91 \, [dB])
+    \label{eq_32}
+\end{equation}
+ 
+On the other hand, substituting the values of \autoref{tab:tab_ex4_op} into \autoref{eq_31}:
+\begin{equation}
+    A_{v,calc} = -\frac{5.968 \times 10^{-3}}{160.1 \times 10^{-6} + 500 \times 10^{-6}} = -\frac{5.968 \times 10^{-3}}{660.1 \times 10^{-6}} \approx -9.041 \, \left[\frac{V}{V}\right]
+    \label{eq_33}
+\end{equation}
+ 
+Both results differ by about $2.4 \, \%$, since \autoref{eq_31} only uses the intrinsic $g_{m}$ and $g_{ds}$, whereas the \textit{AC} analysis linearizes the complete device model, including parasitic elements such as the source and drain series resistances.
+
+
+
+
+
+\newpage
+\section{Exercise 5: Common-Source Stage with Active Load}          \label{sec_6}
+\subsection{Problem Statement}                                      \label{sec_6.1}
+The common-source stage shown in \autoref{fig:fig_5} must provide a low-frequency voltage gain of $|A_{v}| = 10$ with a bias current of $I_{D} = 0.5 \, [mA]$. 
+\begin{figure}[H]
+    \centering
+    \safeimage{0.25\linewidth}{Figures/Figure 5.PNG}
+    \caption{Exercise 5 (Problem 7.20). \cite[p. 343]{b1}}
+    \label{fig:fig_5}
+\end{figure}
+ 
+Since the tool does not provide the parameter $r_{o}$, it is computed as $r_{o} = 1/g_{ds}$, so the gain of the stage is:
+\begin{equation}
+    |A_{v}| = g_{m1} \left(r_{o1} // r_{o2}\right) = \frac{g_{m1}}{g_{ds1} + g_{ds2}}
+    \label{eq_34}
+\end{equation}
+ 
+We are asked to:
+\begin{itemize}
+    \item[(a)] Calculate the required value of $(W/L)_{1}$.
+    \item[(b)] Calculate the required value of $V_{B}$ if $(W/L)_{2} = 20/0.18$.
+\end{itemize}
+ 
+ 
+\subsection{Analysis and Resolution}                                \label{sec_6.2}
+The output conductances given by the models depend on the drain-to-source voltage of each transistor, so the output bias voltage was set first to $V_{out} = V_{DD}/2 = 0.9 \, [V]$, which gives a symmetrical saturation margin to both transistors.
+ 
+Since \autoref{eq_34} requires $g_{ds2}$, the load $M_{2}$ (whose size is given) is analyzed first. The bulk of the \textit{PMOS} device (\textit{n}-well) is connected to $V_{DD}$.
+ 
+ 
+\subsubsection{Part (b): Load Transistor and Bias Voltage \texorpdfstring{$V_{B}$}{VB}}   \label{sec_6.2.1}
+The load $M_{2}$ ($W = 20 \, [\mu m]$, $n_{f} = 2$) was simulated alone with the testbench of \autoref{fig:fig_ex5_tb_pmos}, with its drain forced to $0.9 \, [V]$ while $V_{B}$ is swept.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.25\linewidth}{Figures/ex5_pmos_tb.png}
+    \caption{Testbench of the \textit{PMOS} load with its drain forced to $V_{out} = 0.9 \, [V]$.}
+    \label{fig:fig_ex5_tb_pmos}
+\end{figure}
+ 
+The control block of \autoref{fig:fig_ex5_code_pmos} measures $V_{B}$, $g_{ds2}$ and $V_{D,sat2}$ at $I_{D2} = 0.5 \, [mA]$.
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{\linewidth}
+    \scriptsize
+\begin{verbatim}
+.control
+save all
+save @m.xm2.msky130_fd_pr__pfet_01v8[gds] @m.xm2.msky130_fd_pr__pfet_01v8[vdsat]
+dc Vb 0 1.8 1m
+let id2 = i(Vout)
+let gds2 = @m.xm2.msky130_fd_pr__pfet_01v8[gds]
+let vdsat2 = @m.xm2.msky130_fd_pr__pfet_01v8[vdsat]
+plot id2
+meas dc VB_05 find v(vb) when id2=0.5m
+meas dc GDS2_05 find gds2 when id2=0.5m
+meas dc VDSAT2_05 find vdsat2 when id2=0.5m
+.endc
+\end{verbatim}
+    \end{minipage}
+    \caption{\textit{ngspice} control block for the \textit{PMOS} load characterization.}
+    \label{fig:fig_ex5_code_pmos}
+\end{figure}
+ 
+The resulting current is shown in \autoref{fig:fig_ex5_id2}.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.75\linewidth}{Figures/ex5_id2.png}
+    \caption{Drain current of $M_{2}$ as a function of $V_{B}$, with $V_{out} = 0.9 \, [V]$.}
+    \label{fig:fig_ex5_id2}
+\end{figure}
+ 
+The measurements at $I_{D2} = 0.5 \, [mA]$ yield:
+\begin{equation}
+    V_{B} = 0.6017 \, [V] \qquad , \qquad g_{ds2} = 162.6 \, [\mu A/V] \qquad , \qquad V_{D,sat2} = 0.3352 \, [V]
+    \label{eq_35}
+\end{equation}
+ 
+Therefore, the required bias voltage is $V_{B} = 0.6017 \, [V]$ ($V_{SG2} = 1.198 \, [V]$), with $r_{o2} \approx 6.148 \, [k\Omega]$ and $M_{2}$ in saturation.
+ 
+ 
+\subsubsection{Part (a): Required \texorpdfstring{$(W/L)_{1}$}{(W/L)1}}                      \label{sec_6.2.2}
+Since both transistors carry the same current $I_{D} = 0.5 \, [mA]$, the gain condition of \autoref{eq_34} can be divided by $I_{D}$ and rewritten in terms of quantities normalized to the drain current:
+\begin{equation}
+    \frac{g_{m1}}{I_{D}} - 10 \, \frac{g_{ds1}}{I_{D}} = 10 \, \frac{g_{ds2}}{I_{D}}
+    \label{eq_36}
+\end{equation}
+ 
+The left-hand side depends only on the current density of $M_{1}$, as in the $g_{m}/I_{D}$ methodology of \autoref{sec_4}, while the right-hand side is a constant obtained from \autoref{eq_35}:
+\begin{equation}
+    10 \, \frac{g_{ds2}}{I_{D}} = 10 \cdot \frac{162.6 \times 10^{-6}}{0.5 \times 10^{-3}} \approx 3.253 \, [V^{-1}]
+    \label{eq_37}
+\end{equation}
+ 
+A reference $M_{1}$ ($W_{ref} = 20 \, [\mu m]$, $n_{f} = 2$) with its drain forced to $0.9 \, [V]$ (\autoref{fig:fig_ex5_tb_nmos}) was swept, computing $f = g_{m1}/I_{D} - 10 \, g_{ds1}/I_{D}$ with the control block of \autoref{fig:fig_ex5_code_nmos}.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.32\linewidth}{Figures/ex5_nmos_tb.png}
+    \caption{Testbench of the reference \textit{NMOS} transistor with its drain forced to $0.9 \, [V]$.}
+    \label{fig:fig_ex5_tb_nmos}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{\linewidth}
+    \scriptsize
+\begin{verbatim}
+.control
+save all
+save @m.xm1.msky130_fd_pr__nfet_01v8[gm] @m.xm1.msky130_fd_pr__nfet_01v8[gds]
+dc Vgs 0.5 1.8 1m
+let id1 = -i(Vd)
+let gmid = @m.xm1.msky130_fd_pr__nfet_01v8[gm]/id1
+let gdsid = @m.xm1.msky130_fd_pr__nfet_01v8[gds]/id1
+let f = gmid - 10*gdsid
+plot gmid f
+meas dc VGS_Q find v(g) when f=3.2529
+meas dc ID_Q find id1 when f=3.2529
+meas dc GMID_Q find gmid when f=3.2529
+.endc
+\end{verbatim}
+    \end{minipage}
+    \caption{\textit{ngspice} control block for the sizing of $M_{1}$.}
+    \label{fig:fig_ex5_code_nmos}
+\end{figure}
+ 
+The curves of $g_{m1}/I_{D}$ and $f$ are shown in \autoref{fig:fig_ex5_gmid_f}.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.6\linewidth}{Figures/ex5_gmid_f.png}
+    \caption{$g_{m}/I_{D}$ and $f = g_{m}/I_{D} - 10 \, g_{ds}/I_{D}$ of the reference \textit{NMOS} transistor as a function of $V_{GS}$.}
+    \label{fig:fig_ex5_gmid_f}
+\end{figure}
+ 
+The measurements at the solution point yield:
+\begin{equation}
+    V_{GS} = 1.0057 \, [V] \qquad , \qquad I_{D,ref} = 1.369 \, [mA] \qquad , \qquad \frac{g_{m1}}{I_{D}} = 5.271 \, [V^{-1}]
+    \label{eq_38}
+\end{equation}
+ 
+At this point $g_{ds1}/I_{D} \approx 0.202 \, [V^{-1}]$, lower than $g_{ds2}/I_{D} \approx 0.325 \, [V^{-1}]$, so the \textit{PMOS} device has a lower output resistance. Scaling the reference width:
+\begin{equation}
+    W_{1} = W_{ref} \frac{I_{D}}{I_{D,ref}} = 20 \, [\mu m] \cdot \frac{0.5 \, [mA]}{1.369 \, [mA]} \approx 7.3 \, [\mu m] \implies \left(\frac{W}{L}\right)_{1} = \frac{7.3}{0.18} \approx 40.6
+    \label{eq_39}
+\end{equation}
+ 
+Since $W_{1}$ is lower than the maximum width per finger, $M_{1}$ was implemented with a single finger ($W = 7.3$, $n_{f} = 1$).
+ 
+ 
+\subsubsection{Final Circuit and Operating Point}                    \label{sec_6.2.3}
+The complete stage of \autoref{fig:fig_ex5_final} was simulated using the bias voltage obtained in \autoref{sec_6.2.1}, that is, $V_{B} = 0.601671 \, [V]$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.25\linewidth}{Figures/ex5_final_sch.png}
+    \caption{Final common-source stage with active \textit{PMOS} load.}
+    \label{fig:fig_ex5_final}
+\end{figure}
+ 
+Since the high-impedance output node is very sensitive to the input voltage, the input bias was found with a fine \textit{DC} sweep of $V_{in}$, measuring the point where $V_{out} = 0.9 \, [V]$ and the slope of the transfer characteristic (\autoref{fig:fig_ex5_code_dc}).
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.7\linewidth}
+    \footnotesize
+\begin{verbatim}
+.control
+save all
+dc Vin 0.8 1.2 0.1m
+let av_dc = deriv(v(out))
+plot v(out)
+plot av_dc
+meas dc VIN_Q find v(in) when v(out)=0.9
+meas dc AV_DC find av_dc when v(out)=0.9
+.endc
+\end{verbatim}
+    \end{minipage}
+    \caption{\textit{ngspice} control block of the \textit{DC} transfer characteristic.}
+    \label{fig:fig_ex5_code_dc}
+\end{figure}
+ 
+The transfer characteristic and its slope are shown in \autoref{fig:fig_ex5_transfer}; the high-gain region corresponds to both transistors in saturation.
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.35\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex5_vout_vin.png}
+        \caption{$V_{out}$ versus $V_{in}$.}
+        \label{fig:fig_ex5_vout_vin}
+    \end{subfigure}
+    \hspace{0.35cm}
+    \begin{subfigure}{0.35\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex5_av_dc.png}
+        \caption{$dV_{out}/dV_{in}$ versus $V_{in}$.}
+        \label{fig:fig_ex5_av_dc}
+    \end{subfigure}
+    \caption{Simulated \textit{DC} transfer characteristic of the stage and its slope.}
+    \label{fig:fig_ex5_transfer}
+\end{figure}
+ 
+The measurements at $V_{out} = 0.9 \, [V]$ yield:
+\begin{equation}
+    V_{in,Q} = 1.0065 \, [V] \qquad , \qquad A_{v,DC} = \left. \frac{dV_{out}}{dV_{in}} \right|_{V_{out} = 0.9 \, [V]} = -10.05 \, \left[\frac{V}{V}\right]
+    \label{eq_40}
+\end{equation}
+ 
+The input bias agrees with \autoref{eq_38} within $1 \, [mV]$, which validates the scaling.
+ 
+\textbf{Effect of the finger configuration.} In a first attempt, $M_{1}$ was inadvertently simulated with $W = 7.3 \, [\mu m]$ and $n_{f} = 2$, that is, with two fingers of $3.65 \, [\mu m]$. \autoref{tab:tab_ex5_nf} compares both configurations, which have the same equivalent width.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c|c|c|c|}
+        \hline
+        \textbf{Configuration} & \textbf{Width per finger} & $\mathbf{V_{in,Q}}$ & $\mathbf{A_{v,DC}}$ \\
+        \hline
+        $n_{f} = 2$     & $3.65 \, [\mu m]$        & $1.0151 \, [V]$      & $-9.54 \, [V/V]$ \\
+        $n_{f} = 1$     & $7.30 \, [\mu m]$        & $1.0065 \, [V]$      & $-10.05 \, [V/V]$ \\
+        \hline
+    \end{tabular}
+    \caption{Effect of the finger configuration of $M_{1}$ for the same $W_{eq} = 7.3 \, [\mu m]$.}
+    \label{tab:tab_ex5_nf}
+\end{table}
+ 
+With narrower fingers, the transistor needs $9 \, [mV]$ more gate voltage and the gain drops by about $5 \, \%$, a direct example of the question raised in \autoref{sec_1.1}.
+ 
+Finally, with the input source set to \texttt{dc 1.00651 ac 1}, the operating point of \autoref{tab:tab_ex5_op} and the \textit{AC} response were obtained with a control block analogous to \autoref{fig:fig_ex4_code_final}.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c|c|}
+        \hline
+        \textbf{Parameter} & \textbf{Simulated value} \\
+        \hline
+        $I_{D}$                     & $0.5000 \, [mA]$ \\
+        $g_{m1}$                    & $2.631 \, [mA/V]$ \\
+        $g_{ds1}$ ($r_{o1}$)        & $100.9 \, [\mu A/V]$ ($9.913 \, [k\Omega]$) \\
+        $g_{ds2}$ ($r_{o2}$)        & $162.6 \, [\mu A/V]$ ($6.148 \, [k\Omega]$) \\
+        $V_{D,sat1}$                & $0.1918 \, [V]$ \\
+        $V_{D,sat2}$                & $0.3352 \, [V]$ \\
+        \hline
+    \end{tabular}
+    \caption{Simulated operating point of $M_{1}$ and $M_{2}$.}
+    \label{tab:tab_ex5_op}
+\end{table}
+ 
+Both transistors operate in saturation, since $V_{DS1} = 0.9 \, [V] > V_{D,sat1} = 0.1918 \, [V]$ and $V_{SD2} = 0.9 \, [V] > V_{D,sat2} = 0.3352 \, [V]$.
+ 
+ 
+\subsubsection{Voltage Gain}                                         \label{sec_6.2.4}
+The frequency response of the stage is shown in \autoref{fig:fig_ex5_ac}.
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.35\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex5_gain_mag.png}
+        \caption{Magnitude $[dB]$.}
+        \label{fig:fig_ex5_gain_mag}
+    \end{subfigure}
+    \hspace{0.35cm}
+    \begin{subfigure}{0.35\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex5_gain_phase.png}
+        \caption{Phase $[^{\circ}]$.}
+        \label{fig:fig_ex5_gain_phase}
+    \end{subfigure}
+    \caption{Simulated frequency response $V_{out}/V_{in}$ of the stage with active load.}
+    \label{fig:fig_ex5_ac}
+\end{figure}
+ 
+At low frequencies the magnitude is constant at approximately $20 \, [dB]$ with a phase of $180 \, [^{\circ}]$. The gain measured at $1 \, [kHz]$ is:
+\begin{equation}
+    A_{v,AC} = -10.05 \, \left[\frac{V}{V}\right] \qquad (20.04 \, [dB])
+    \label{eq_41}
+\end{equation}
+ 
+which coincides with the slope of the transfer characteristic of \autoref{eq_40}. On the other hand, substituting the values of \autoref{tab:tab_ex5_op} into \autoref{eq_34}:
+\begin{equation}
+    |A_{v,calc}| = \frac{2.631 \times 10^{-3}}{100.9 \times 10^{-6} + 162.6 \times 10^{-6}} = \frac{2.631 \times 10^{-3}}{263.5 \times 10^{-6}} \approx 9.984 \, \left[\frac{V}{V}\right]
+    \label{eq_42}
+\end{equation}
+ 
+The difference is below $1 \, \%$, so the gain requirement $|A_{v}| = 10$ is fulfilled.
+
+
+
+
+
+\newpage
+\section[Exercise 6: Common-Source Stage with Diode-Connected Load]{Exercise 6: Common-Source Stage with\\ Diode-Connected Load} \label{sec_7}
+\subsection{Problem Statement}                                      \label{sec_7.1}
+The circuit shown in \autoref{fig:fig_6} must be designed for a voltage gain of $|A_{v}| = 3$. Given $(W/L)_{1} = 20/0.18$, we must determine $(W/L)_{2}$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.25\linewidth}{Figures/Figure 6.PNG}
+    \caption{Exercise 6 (Problem 7.25). \cite[p. 344]{b1}}
+    \label{fig:fig_6}
+\end{figure}
+ 
+ 
+\subsection{Analysis and Resolution}                                \label{sec_7.2}
+The load $M_{2}$ of \autoref{fig:fig_6} is an \textit{NMOS} transistor with its gate and drain at $V_{DD}$ and its source at the output. Neglecting body effect and with $\lambda = 0$, the square-law model gives:
+\begin{equation}
+    |A_{v}| = \frac{g_{m1}}{g_{m2}} = \sqrt{\frac{(W/L)_{1}}{(W/L)_{2}}} \implies \left(\frac{W}{L}\right)_{2} = \frac{(W/L)_{1}}{|A_{v}|^{2}} = \frac{20/0.18}{9} \approx 12.35
+    \label{eq_43}
+\end{equation}
+ 
+With the \textit{PDK} models, the bulk of $M_{2}$ is grounded while its source is at $V_{out}$, so the body transconductance $g_{mb2}$ appears, and the output conductances are no longer zero. The gain is then:
+\begin{equation}
+    |A_{v}| = \frac{g_{m1}}{g_{m2} + g_{mb2} + g_{ds1} + g_{ds2}}
+    \label{eq_44}
+\end{equation}
+ 
+Since the bias current is not specified, it was set to $I_{D} = 0.5 \, [mA]$, so the output voltage is fixed by the load, $V_{out} = V_{DD} - V_{GS2}$. As in \autoref{sec_6}, $M_{1}$ is characterized first and then $M_{2}$ is sized.
+ 
+ 
+\subsubsection{Input Transistor Characterization}                   \label{sec_7.2.1}
+$M_{1}$ ($W = 20 \, [\mu m]$, $n_{f} = 2$) was simulated with its drain forced to an estimate of $V_{out}$ (\autoref{fig:fig_ex6_tb_m1}), measuring $g_{m1}$ and $g_{ds1}$ at $I_{D} = 0.5 \, [mA]$ (\autoref{fig:fig_ex6_code_m1}).
+\begin{figure}[H]
+    \centering
+    \safeimage{0.22\linewidth}{Figures/ex6_m1_tb.png}
+    \caption{Testbench of the input transistor with its drain forced to the estimated output voltage.}
+    \label{fig:fig_ex6_tb_m1}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{\linewidth}
+    \scriptsize
+\begin{verbatim}
+.control
+save all
+save @m.xm1.msky130_fd_pr__nfet_01v8[gm] @m.xm1.msky130_fd_pr__nfet_01v8[gds]
+save @m.xm1.msky130_fd_pr__nfet_01v8[vdsat]
+dc Vgs 0.3 1.2 0.1m
+let id1 = -i(Vd)
+let gm1 = @m.xm1.msky130_fd_pr__nfet_01v8[gm]
+let gds1 = @m.xm1.msky130_fd_pr__nfet_01v8[gds]
+let vdsat1 = @m.xm1.msky130_fd_pr__nfet_01v8[vdsat]
+plot id1
+meas dc VGS1_Q find v(g) when id1=0.5m
+meas dc GM1_Q find gm1 when id1=0.5m
+meas dc GDS1_Q find gds1 when id1=0.5m
+meas dc VDSAT1_Q find vdsat1 when id1=0.5m
+.endc
+\end{verbatim}
+    \end{minipage}
+    \caption{\textit{ngspice} control block for the characterization of $M_{1}$.}
+    \label{fig:fig_ex6_code_m1}
+\end{figure}
+ 
+Once $g_{m1}$ and $g_{ds1}$ are known, \autoref{eq_44} gives the conductance that the load must present, which, divided by the bias current, becomes a target value for the load transistor:
+\begin{equation}
+    \frac{g_{m2} + g_{mb2} + g_{ds2}}{I_{D}} = \frac{g_{m1}/3 - g_{ds1}}{I_{D}}
+    \label{eq_45}
+\end{equation}
+ 
+Since $V_{out}$ is not known in advance, the design was iterated starting from $V_{out} = 0.5 \, [V]$, as summarized in \autoref{tab:tab_ex6_iter}.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c|c|c|} \hline
+        \textbf{Parameter} & \textbf{Iteration 1} & \textbf{Iteration 2} \\ \hline
+        $V_{DS1}$ (forced)          & $0.5000 \, [V]$          & $0.4154 \, [V]$ \\
+        $V_{GS1}$                   & $0.8728 \, [V]$          & $0.8763 \, [V]$ \\
+        $g_{m1}$                    & $4.831 \, [mA/V]$        & $4.767 \, [mA/V]$ \\
+        $g_{ds1}$                   & $186.3 \, [\mu A/V]$     & $217.2 \, [\mu A/V]$ \\
+        $V_{D,sat1}$                & $0.1372 \, [V]$          & $0.1388 \, [V]$ \\
+        Target of \autoref{eq_45}   & $2.848 \, [V^{-1}]$      & $2.743 \, [V^{-1}]$ \\
+        $I_{D,ref}$ ($W_{ref} = 2 \, [\mu m]$) & $0.3739 \, [mA]$ & $0.3915 \, [mA]$ \\
+        $V_{out}$                   & $0.4154 \, [V]$          & $0.3976 \, [V]$ \\ \hline
+    \end{tabular}
+    \caption{Iterations of the design of the stage with diode-connected load.}
+    \label{tab:tab_ex6_iter}
+\end{table}
+ 
+The second iteration changed $V_{out}$ by only $18 \, [mV]$, so the design was considered converged, with $M_{1}$ in saturation in both cases.
+ 
+ 
+\subsubsection{Load Transistor Sizing}                              \label{sec_7.2.2}
+A diode-connected reference load with $W_{ref} = 2 \, [\mu m]$ and grounded bulk was characterized by sweeping the current drawn from its source (\autoref{fig:fig_ex6_tb_m2}).
+\begin{figure}[H]
+    \centering
+    \safeimage{0.3\linewidth}{Figures/ex6_m2_tb.png}
+    \caption{Testbench of the diode-connected load transistor with its bulk grounded.}
+    \label{fig:fig_ex6_tb_m2}
+\end{figure}
+ 
+For each current, the control block of \autoref{fig:fig_ex6_code_m2} computes the normalized load conductance and measures the point where it equals the target of \autoref{eq_45}.
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{\linewidth}
+    \tiny
+\begin{verbatim}
+.control
+save all
+save @m.xm2.msky130_fd_pr__nfet_01v8[gm] @m.xm2.msky130_fd_pr__nfet_01v8[gmbs]
+save @m.xm2.msky130_fd_pr__nfet_01v8[gds] @m.xm2.msky130_fd_pr__nfet_01v8[vth]
+dc Iload 10u 2m 1u
+let id2 = -i(Vdd)
+let g2 = @m.xm2.msky130_fd_pr__nfet_01v8[gm] + @m.xm2.msky130_fd_pr__nfet_01v8[gmbs] + @m.xm2.msky130_fd_pr__nfet_01v8[gds]
+let g2id = g2/id2
+plot g2id
+plot v(out)
+meas dc I_REF find id2 when g2id=2.743
+meas dc VOUT_REF find v(out) when g2id=2.743
+.endc
+\end{verbatim}
+    \end{minipage}
+    \caption{\textit{ngspice} control block for the sizing of $M_{2}$ (second iteration).}
+    \label{fig:fig_ex6_code_m2}
+\end{figure}
+ 
+The results of the second iteration are shown in \autoref{fig:fig_ex6_m2_curves}; the region with negative $V_{out}$ has no physical meaning and was not used.
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex6_m2_g2id.png}
+        \caption{$(g_{m2} + g_{mb2} + g_{ds2})/I_{D}$ versus $I_{D}$.}
+        \label{fig:fig_ex6_m2_g2id}
+    \end{subfigure}
+    \hspace{0.35cm}
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex6_m2_vout.png}
+        \caption{$V_{out}$ versus $I_{D}$.}
+        \label{fig:fig_ex6_m2_vout}
+    \end{subfigure}
+    \caption{Characterization of the diode-connected reference load ($W_{ref} = 2 \, [\mu m]$, $L = 0.18 \, [\mu m]$).}
+    \label{fig:fig_ex6_m2_curves}
+\end{figure}
+ 
+At the solution point, $I_{D,ref} = 0.3915 \, [mA]$ and $V_{out} = 0.3976 \, [V]$. Since scaling at constant current density keeps $V_{GS2}$ and the body effect unchanged:
+\begin{equation}
+    W_{2} = W_{ref} \frac{I_{D}}{I_{D,ref}} = 2 \, [\mu m] \cdot \frac{0.5 \, [mA]}{0.3915 \, [mA]} \approx 2.55 \, [\mu m] \implies \left(\frac{W}{L}\right)_{2} = \frac{2.55}{0.18} \approx 14.2
+    \label{eq_46}
+\end{equation}
+ 
+The load transistor was implemented with a single finger ($W = 2.55$, $n_{f} = 1$).
+ 
+ 
+\subsubsection{Final Circuit and Operating Point}                    \label{sec_7.2.3}
+The complete stage of \autoref{fig:fig_ex6_final} was first simulated with a \textit{DC} sweep of $V_{in}$, using a control block analogous to the one of \autoref{fig:fig_ex5_code_dc} but measuring the point where $I_{D} = 0.5 \, [mA]$.
+\begin{figure}[H]
+    \centering
+    \safeimage{0.3\linewidth}{Figures/ex6_final_sch.png}
+    \caption{Final common-source stage with diode-connected \textit{NMOS} load.}
+    \label{fig:fig_ex6_final}
+\end{figure}
+ 
+The transfer characteristic and its slope are shown in \autoref{fig:fig_ex6_transfer}.
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex6_vout_vin.png}
+        \caption{$V_{out}$ versus $V_{in}$.}
+        \label{fig:fig_ex6_vout_vin}
+    \end{subfigure}
+    \hspace{0.35cm}
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex6_av_dc.png}
+        \caption{$dV_{out}/dV_{in}$ versus $V_{in}$.}
+        \label{fig:fig_ex6_av_dc}
+    \end{subfigure}
+    \caption{Simulated \textit{DC} transfer characteristic of the stage and its slope.}
+    \label{fig:fig_ex6_transfer}
+\end{figure}
+ 
+The measurements at $I_{D} = 0.5 \, [mA]$ yield:
+\begin{equation}
+    V_{in,Q} = 0.8770 \, [V] \qquad , \qquad V_{out,Q} = 0.4004 \, [V] \qquad , \qquad A_{v,DC} = -3.076 \, \left[\frac{V}{V}\right]
+    \label{eq_47}
+\end{equation}
+ 
+Unlike the square-law prediction of \autoref{eq_43}, \autoref{fig:fig_ex6_av_dc} shows that the gain depends strongly on the bias point: it decreases at low currents, where $g_{m2}/I_{D}$ increases, and collapses at high currents, where $M_{1}$ enters the triode region.
+ 
+With the input source set to \texttt{dc 0.877013 ac 1}, the operating point of \autoref{tab:tab_ex6_op} was obtained.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c|c|} \hline
+        \textbf{Parameter} & \textbf{Simulated value} \\ \hline
+        $I_{D}$                     & $0.5000 \, [mA]$ \\
+        $V_{out}$                   & $0.4004 \, [V]$ \\
+        $g_{m1}$                    & $4.752 \, [mA/V]$ \\
+        $g_{ds1}$                   & $225.0 \, [\mu A/V]$ \\
+        $V_{D,sat1}$                & $0.1391 \, [V]$ \\
+        $g_{m2}$                    & $1.131 \, [mA/V]$ \\
+        $g_{mb2}$                   & $160.7 \, [\mu A/V]$ \\
+        $g_{ds2}$                   & $76.04 \, [\mu A/V]$ \\
+        $V_{Th2}$                   & $0.8148 \, [V]$ \\ \hline
+    \end{tabular}
+    \caption{Simulated operating point of $M_{1}$ and $M_{2}$.}
+    \label{tab:tab_ex6_op}
+\end{table}
+ 
+$M_{1}$ operates in saturation, since $V_{DS1} = 0.4004 \, [V] > V_{D,sat1} = 0.1391 \, [V]$, while $M_{2}$ is always saturated due to its diode connection. The threshold voltage of $M_{2}$ is about $115 \, [mV]$ higher than that of a device with grounded source (\autoref{sec_2}), as a consequence of the body effect with $V_{SB2} \approx 0.4 \, [V]$. The ratio $g_{mb2}/g_{m2} \approx 0.14$ quantifies the contribution of the body effect to the load conductance.
+ 
+ 
+\subsubsection{Voltage Gain}                                         \label{sec_7.2.4}
+The frequency response of the stage is shown in \autoref{fig:fig_ex6_ac}.
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex6_gain_mag.png}
+        \caption{Magnitude $[dB]$.}
+        \label{fig:fig_ex6_gain_mag}
+    \end{subfigure}
+    \hspace{0.35cm}
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \safeimage{\linewidth}{Figures/ex6_gain_phase.png}
+        \caption{Phase $[^{\circ}]$.}
+        \label{fig:fig_ex6_gain_phase}
+    \end{subfigure}
+    \caption{Simulated frequency response $V_{out}/V_{in}$ of the stage with diode-connected load.}
+    \label{fig:fig_ex6_ac}
+\end{figure}
+ 
+At low frequencies the magnitude is constant at approximately $9.76 \, [dB]$ with a phase of $180 \, [^{\circ}]$. The gain measured at $1 \, [kHz]$ is:
+\begin{equation}
+    A_{v,AC} = -3.076 \, \left[\frac{V}{V}\right] \qquad (9.76 \, [dB])
+    \label{eq_48}
+\end{equation}
+ 
+which coincides with the slope of the transfer characteristic of \autoref{eq_47}. On the other hand, substituting the values of \autoref{tab:tab_ex6_op} into \autoref{eq_44}:
+\begin{equation}
+    |A_{v,calc}| = \frac{4.752 \times 10^{-3}}{(1.131 + 0.1607 + 0.2250 + 0.0760) \times 10^{-3}} = \frac{4.752}{1.593} \approx 2.983 \, \left[\frac{V}{V}\right]
+    \label{eq_49}
+\end{equation}
+ 
+Both results differ by about $3 \, \%$, so the gain requirement is fulfilled. Considering only the transconductances, the gain would be $g_{m1}/g_{m2} \approx 4.20$; the output conductances reduce it to $3.32$, and the body effect to the value of \autoref{eq_49}.
+
+
+\newpage
+\section{Conclusion}                                                \label{sec_8}
+In this report, the six circuits of \textit{Homework 5} were redesigned and verified with the \textit{sky130A} models in \textit{Xschem} and \textit{ngspice}. All designs met their specifications: the bias currents and input impedances were obtained within $0.1 \, \%$, and the gains of the active-load and diode-connected-load stages reached $10.05$ and $3.08$, respectively. \autoref{tab:tab_concl} summarizes the main design values compared with the hand calculations of \textit{Homework 5}.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|c|c|c|c|} \hline
+        \textbf{Exercise} & \textbf{Parameter} & \textbf{Homework 5} & \textbf{Homework 6} \\ \hline
+        \multirow{2}{*}{1} & $V_{G}$             & $0.700 \, [V]$              & $0.937 \, [V]$ \\
+                           & $R_{1}$ / $R_{2}$   & $51.43$ / $32.73 \, [k\Omega]$ & $38.41$ / $41.73 \, [k\Omega]$ \\ \hline
+        \multirow{2}{*}{2} & $(W/L)_{min}$       & $55.56$                     & $65.2$ \\
+                           & $R_{1}$ / $R_{2}$   & $45$ / $90 \, [k\Omega]$    & $35.20$ / $203.2 \, [k\Omega]$ \\ \hline
+        3                  & $R_{D}$             & $1.2 \, [k\Omega]$          & $938.7 \, [\Omega]$ \\ \hline
+        \multirow{2}{*}{4} & $V_{G}$             & $0.573 \, [V]$              & $0.824 \, [V]$ \\
+                           & $|A_{v}|$           & $11.54$                     & $8.82$ \\ \hline
+        \multirow{2}{*}{5} & $(W/L)_{1}$         & $7.81$                      & $40.6$ \\
+                           & $V_{B}$             & $1.100 \, [V]$              & $0.602 \, [V]$ \\ \hline
+        6                  & $(W/L)_{2}$         & $24.69$                     & $14.2$ \\ \hline
+    \end{tabular}
+    \caption{Main design values of \textit{Homework 5} (square-law model) and \textit{Homework 6} (\textit{sky130A}).}
+    \label{tab:tab_concl}
+\end{table}
+
+The differences are explained by a few physical effects that the square-law model neglects. The threshold voltage of the real devices is about $0.7 \, [V]$ instead of $0.4 \, [V]$, which raises every gate voltage and changes the bias dividers. Velocity saturation and mobility degradation make $V_{D,sat}$ much smaller than $V_{OV}$ and the relation $g_{m} = 2 I_{D}/V_{OV}$ only approximate, especially in moderate inversion. The output resistance at $L = 0.18 \, [\mu m]$ is finite (equivalent $\lambda$ between $0.2$ and $0.33 \, [V^{-1}]$, about twice the values assumed), which reduced the gain of Exercise 4 and required a much larger $M_{1}$ in Exercise 5. The body effect, ignored in \textit{Homework 5}, raised the threshold voltage in Exercises 2 and 6 and reduced the gain of the diode-connected load. In addition, in Exercise 6 the load is an \textit{NMOS} device, whereas \textit{Homework 5} treated it as \textit{PMOS}; the corrected square-law value ($12.35$) is close to the simulated one.
+
+Finally, the $g_{m}/I_{D}$ methodology combined with width scaling at constant current density proved to be an efficient way to size transistors directly from the models, and the experiment of Exercise 5 showed that the finger configuration must also be taken into account. Hand calculations remain useful as a first estimate, but the final design values must be obtained from the \textit{PDK} models.
+
+
+
+\newpage
+\section{Bibliography}                                              \label{sec_bib}
+\begingroup
+    \renewcommand{\section}[2]{}    % keeps the numbered heading above instead of the default one
+    \raggedright                    % avoids badly stretched lines with long URLs
+    \bibliographystyle{ieeetr}
+    \bibliography{references}
+\endgroup
+\end{document}

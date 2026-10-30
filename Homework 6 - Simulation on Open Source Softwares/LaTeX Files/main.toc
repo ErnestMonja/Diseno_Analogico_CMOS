@@ -1,0 +1,45 @@
+\babel@toc {english}{}\relax 
+\contentsline {section}{\numberline {1}Introduction}{3}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Transistor Sizing Constraints}{3}{subsection.1.1}%
+\contentsline {section}{\numberline {2}Exercise 1: Common-Source Bias Design}{5}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Problem Statement}{5}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Analysis and Resolution}{5}{subsection.2.2}%
+\contentsline {subsubsection}{\numberline {2.2.1}Transistor Sizing}{5}{subsubsection.2.2.1}%
+\contentsline {subsubsection}{\numberline {2.2.2}Gate Voltage for $I_{D} = 1 \, [mA]$}{5}{subsubsection.2.2.2}%
+\contentsline {subsubsection}{\numberline {2.2.3}Bias Resistors $R_{1}$ and $R_{2}$}{7}{subsubsection.2.2.3}%
+\contentsline {subsubsection}{\numberline {2.2.4}Operating Point Verification}{7}{subsubsection.2.2.4}%
+\contentsline {subsubsection}{\numberline {2.2.5}Input Impedance Measurement}{8}{subsubsection.2.2.5}%
+\contentsline {section}{\numberline {3}Exercise 2: Common-Source with Source Degeneration}{10}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Problem Statement}{10}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Analysis and Resolution}{10}{subsection.3.2}%
+\contentsline {subsubsection}{\numberline {3.2.1}Part (a): Minimum allowable value of $W/L$}{11}{subsubsection.3.2.1}%
+\contentsline {subsubsection}{\numberline {3.2.2}Part (b): Required values of $R_{1}$ and $R_{2}$}{13}{subsubsection.3.2.2}%
+\contentsline {subsubsection}{\numberline {3.2.3}Operating Point Verification}{13}{subsubsection.3.2.3}%
+\contentsline {subsubsection}{\numberline {3.2.4}Input Impedance Measurement}{14}{subsubsection.3.2.4}%
+\contentsline {section}{\numberline {4}Exercise 3: Self-Biased Stage Design}{15}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Problem Statement}{15}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Analysis and Resolution}{15}{subsection.4.2}%
+\contentsline {subsubsection}{\numberline {4.2.1}Transconductance Efficiency Characterization}{15}{subsubsection.4.2.1}%
+\contentsline {subsubsection}{\numberline {4.2.2}Width Verification and $R_{D}$ Calculation}{17}{subsubsection.4.2.2}%
+\contentsline {subsubsection}{\numberline {4.2.3}Final Circuit Verification}{18}{subsubsection.4.2.3}%
+\contentsline {section}{\numberline {5}Exercise 4: Common-Source Stage Analysis}{19}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Problem Statement}{19}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Analysis and Resolution}{19}{subsection.5.2}%
+\contentsline {subsubsection}{\numberline {5.2.1}Part (a): Gate Voltage and Saturation Verification}{19}{subsubsection.5.2.1}%
+\contentsline {subsubsection}{\numberline {5.2.2}Part (b): Voltage Gain}{21}{subsubsection.5.2.2}%
+\contentsline {section}{\numberline {6}Exercise 5: Common-Source Stage with Active Load}{23}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Problem Statement}{23}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Analysis and Resolution}{23}{subsection.6.2}%
+\contentsline {subsubsection}{\numberline {6.2.1}Part (b): Load Transistor and Bias Voltage $V_{B}$}{23}{subsubsection.6.2.1}%
+\contentsline {subsubsection}{\numberline {6.2.2}Part (a): Required $(W/L)_{1}$}{25}{subsubsection.6.2.2}%
+\contentsline {subsubsection}{\numberline {6.2.3}Final Circuit and Operating Point}{26}{subsubsection.6.2.3}%
+\contentsline {subsubsection}{\numberline {6.2.4}Voltage Gain}{28}{subsubsection.6.2.4}%
+\contentsline {section}{\numberline {7}Exercise 6: Common-Source Stage with Diode-Connected Load}{29}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Problem Statement}{29}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Analysis and Resolution}{29}{subsection.7.2}%
+\contentsline {subsubsection}{\numberline {7.2.1}Input Transistor Characterization}{29}{subsubsection.7.2.1}%
+\contentsline {subsubsection}{\numberline {7.2.2}Load Transistor Sizing}{31}{subsubsection.7.2.2}%
+\contentsline {subsubsection}{\numberline {7.2.3}Final Circuit and Operating Point}{32}{subsubsection.7.2.3}%
+\contentsline {subsubsection}{\numberline {7.2.4}Voltage Gain}{33}{subsubsection.7.2.4}%
+\contentsline {section}{\numberline {8}Conclusion}{35}{section.8}%
+\contentsline {section}{\numberline {9}Bibliography}{36}{section.9}%
